@@ -1,5 +1,14 @@
 from typing import List, Dict
-from vllm import SamplingParams
+
+# Try to import vllm SamplingParams, but handle gracefully if not available
+try:
+    from vllm import SamplingParams
+    VLLM_AVAILABLE = True
+except ImportError:
+    VLLM_AVAILABLE = False
+    SamplingParams = None
+    print("Warning: vLLM not available. Some generation features may not work.")
+
 from evaluate import extract_answer
 from agentic_reason.config import (
     BEGIN_SEARCH_QUERY,

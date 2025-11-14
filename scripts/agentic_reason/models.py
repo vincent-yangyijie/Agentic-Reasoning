@@ -1,8 +1,15 @@
 import os
 from transformers import AutoTokenizer
-from vllm import LLM
 from utils.remote_llm import RemoteAPILLM
 import torch
+
+# Try to import vllm, but handle gracefully if not available (e.g., on Windows)
+try:
+    from vllm import LLM
+    VLLM_AVAILABLE = True
+except ImportError:
+    VLLM_AVAILABLE = False
+    print("Warning: vLLM not available. Local model inference will not work on this platform.")
 
 def get_output_dir(args, dataset_name, max_search_limit=5, top_k=10):
     """Determine output directory based on model and dataset configuration"""
@@ -26,16 +33,18 @@ def get_output_dir(args, dataset_name, max_search_limit=5, top_k=10):
 def initialize_model(args):
     """Initialize the model and tokenizer based on arguments"""
     if not args.remote_model:
+        if not VLLM_AVAILABLE:
+            raise ValueError("vLLM is not available on this platform. Please use a remote model instead.")
         if not args.model_path:
             raise ValueError("model_path is required when not using a remote model")
         if not os.path.exists(args.model_path):
             raise ValueError(f"Local model path does not exist: {args.model_path}")
-            
+
         tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'left'
-        
+
         llm = LLM(
             model=args.model_path,
             tensor_parallel_size=torch.cuda.device_count(),
@@ -45,12 +54,12 @@ def initialize_model(args):
         # Remote model initialization
         if args.remote_model == 'gpt-4o':
             tokenizer = AutoTokenizer.from_pretrained("gpt2")
-        elif args.remote_model == 'claude-3.5-sonnet':
+        elif args.remote_model == 'claude-3-sonnet':
             tokenizer = AutoTokenizer.from_pretrained("anthropic/claude-3-sonnet")
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'left'
-        
+
         llm = RemoteAPILLM(model_name=args.remote_model)
-    
+
     return llm, tokenizer
